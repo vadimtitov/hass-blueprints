@@ -1,0 +1,112 @@
+blueprint:
+  name: Occupancy Based States Toggle
+  description: Turn off [Target Devices] when occupancy is not detected. When occupancy detected bring [Target Devices] back to their previous states. If unoccupied for too long [Timeout], run [Default Actions] e.g. activate some scene
+  domain: automation
+  input:
+    scene_name:
+      name: Scene Name
+      description: Any unique name
+      selector:
+        text:
+    occupancy_sensor:
+      name: Occupancy Sensor
+      description: Occupancy sensor to use for this automation
+      selector:
+        entity:
+          domain: binary_sensor
+          device_class: occupancy
+    target_entities:
+      name: Target Entities
+      description: List of entities to control by this automation
+      selector:
+        entity:
+          domain:
+            - light
+            - switch
+            - climate
+            - cover
+            - media_player
+          multiple: true
+    timeout:
+      name: Timeout
+      description: Time required to forget previous state of the room and fallback to [Default Actions]
+      selector:
+        duration:
+    default_actions:
+      name: Default Actions
+      description: Custom actions on the event of occupancy, if area has been not occupied for too long based on [Timeout]
+      selector:
+        action:
+
+variables:
+  _scene_name: !input scene_name
+  scene_id: "{{ _scene_name | slugify }}"
+  entities_all: !input target_entities
+  entities_light: "{{ entities_all | select('match', 'light') | list }}"
+  entities_switch: "{{ entities_all | select('match', 'switch') | list }}"
+  entities_climate: "{{ entities_all | select('match', 'climate') | list }}"
+  entities_cover: "{{ entities_all | select('match', 'cover') | list }}"
+  entities_media_player: "{{ entities_all | select('match', 'media_player') | list }}"
+
+trigger:
+  - platform: state
+    entity_id: !input occupancy_sensor
+    to: "on"
+    id: OCCUPIED
+  - platform: state
+    entity_id: !input occupancy_sensor
+    to: "off"
+    id: EMPTY
+  - platform: state
+    entity_id: !input occupancy_sensor
+    to: "off"
+    id: EMPTY_TIMEOUT
+    for: !input timeout
+
+condition: []
+mode: single
+action:
+  - choose:
+      - conditions:
+          - condition: trigger
+            id: OCCUPIED
+        sequence:
+          - service: scene.turn_on
+            data:
+              entity_id: "scene.{{ scene_id }}"
+      - conditions:
+          - condition: trigger
+            id: EMPTY
+        sequence:
+          - service: scene.create
+            data:
+              scene_id: "{{ scene_id }}"
+              snapshot_entities: "{{ entities_all }}"
+          - service: light.turn_off
+            target:
+              entity_id: "{{ entities_light }}"
+          - service: switch.turn_off
+            target:
+              entity_id: "{{ entities_switch }}"
+          - service: climate.turn_off
+            target:
+              entity_id: "{{ entities_climate }}"
+          - service: cover.close_cover
+            target:
+              entity_id: "{{ entities_cover }}"
+          - service: media_player.turn_off
+            target:
+              entity_id: "{{ entities_media_player }}"
+      - conditions:
+          - condition: trigger
+            id: EMPTY_TIMEOUT
+        sequence:
+          - wait_for_trigger:
+              - platform: state
+                entity_id: !input occupancy_sensor
+                to: "on"
+            continue_on_timeout: false
+          - if:
+              - condition: template
+                value_template: "True"
+            then: !input default_actions
