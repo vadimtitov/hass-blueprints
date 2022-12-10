@@ -1,6 +1,6 @@
 blueprint:
   name: Occupancy Based States Toggle
-  description: Turn off [Target Devices] when occupancy is not detected. When occupancy detected bring [Target Devices] back to their previous states. If unoccupied for too long [Timeout], run [Default Actions] e.g. activate some scene
+  description: Turn off Target Entities when occupancy is not detected. When occupancy detected bring Target Entities back to their previous states. If unoccupied for too long (Timeout), run Default Actions e.g. activate some scene
   domain: automation
   input:
     scene_name:
@@ -29,12 +29,12 @@ blueprint:
           multiple: true
     timeout:
       name: Timeout
-      description: Time required to forget previous states and fallback to [Default Actions]
+      description: Time required to forget previous states and fallback to Default Actions
       selector:
         duration:
     default_actions:
       name: Default Actions
-      description: Custom actions on the event of occupancy, if area has been not occupied for too long based on [Timeout]
+      description: Custom actions on the event of occupancy, if area has been not occupied for too long based on Timeout
       selector:
         action:
 
