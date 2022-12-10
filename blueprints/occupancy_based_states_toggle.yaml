@@ -29,7 +29,7 @@ blueprint:
           multiple: true
     timeout:
       name: Timeout
-      description: Time required to forget previous state of the room and fallback to [Default Actions]
+      description: Time required to forget previous states and fallback to [Default Actions]
       selector:
         duration:
     default_actions:
