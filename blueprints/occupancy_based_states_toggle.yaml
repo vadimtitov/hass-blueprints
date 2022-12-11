@@ -1,11 +1,11 @@
 blueprint:
   name: Occupancy Based States Toggle
-  description: Turn off Target Entities when occupancy is not detected. When occupancy detected bring Target Entities back to their previous states. If unoccupied for too long (Timeout), run Default Actions e.g. activate some scene
+  description: Turn off Target Entities when area becomes empty. When occupancy is detected set Target Entities back to their previous states. Original states are remembered for a specified time, after that Default Actions are ran on the event of occupancy.
   domain: automation
   input:
     scene_name:
       name: Scene Name
-      description: Any unique name
+      description: Any unique name to store a scene with original states
       selector:
         text:
     occupancy_sensor:
@@ -23,20 +23,38 @@ blueprint:
           domain:
             - light
             - switch
-            - climate
             - cover
             - media_player
+            - climate
+            - fan
+            - humidifier
           multiple: true
-    timeout:
-      name: Timeout
+    turn_off_after:
+      name: Turn Off After
+      description: Time to wait before turning off entities
+      default:
+        seconds: 0
+      selector:
+        duration:
+    remember_for:
+      name: Remember States For
       description: Time required to forget previous states and fallback to Default Actions
+      default:
+        hours: 1
       selector:
         duration:
     default_actions:
       name: Default Actions
-      description: Custom actions on the event of occupancy, if area has been not occupied for too long based on Timeout
+      description: Default actions on the event of occupancy, if original states are forgotten
+      default: []
       selector:
         action:
+    condition_template:
+      name: Condition Template
+      description: Template that specifies condition to run this automation under
+      default: "True"
+      selector:
+        template:
 
 variables:
   _scene_name: !input scene_name
@@ -44,9 +62,11 @@ variables:
   entities_all: !input target_entities
   entities_light: "{{ entities_all | select('match', 'light') | list }}"
   entities_switch: "{{ entities_all | select('match', 'switch') | list }}"
-  entities_climate: "{{ entities_all | select('match', 'climate') | list }}"
   entities_cover: "{{ entities_all | select('match', 'cover') | list }}"
   entities_media_player: "{{ entities_all | select('match', 'media_player') | list }}"
+  entities_climate: "{{ entities_all | select('match', 'climate') | list }}"
+  entities_fan: "{{ entities_all | select('match', 'fan') | list }}"
+  entities_humidifier: "{{ entities_all | select('match', 'humidifier') | list }}"
 
 trigger:
   - platform: state
@@ -57,13 +77,17 @@ trigger:
     entity_id: !input occupancy_sensor
     to: "off"
     id: EMPTY
+    for: !input turn_off_after
   - platform: state
     entity_id: !input occupancy_sensor
     to: "off"
     id: EMPTY_TIMEOUT
-    for: !input timeout
+    for: !input remember_for
 
-condition: []
+condition:
+  - condition: template
+    value_template: !input condition_template
+
 mode: single
 action:
   - choose:
@@ -88,15 +112,21 @@ action:
           - service: switch.turn_off
             target:
               entity_id: "{{ entities_switch }}"
-          - service: climate.turn_off
-            target:
-              entity_id: "{{ entities_climate }}"
           - service: cover.close_cover
             target:
               entity_id: "{{ entities_cover }}"
           - service: media_player.turn_off
             target:
               entity_id: "{{ entities_media_player }}"
+          - service: climate.turn_off
+            target:
+              entity_id: "{{ entities_climate }}"
+          - service: fan.turn_off
+            target:
+              entity_id: "{{ entities_fan }}"
+          - service: humidifier.turn_off
+            target:
+              entity_id: "{{ entities_humidifier }}"
       - conditions:
           - condition: trigger
             id: EMPTY_TIMEOUT
